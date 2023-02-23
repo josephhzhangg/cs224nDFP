@@ -145,7 +145,7 @@ class BertLayer(nn.Module):
     #1
     attention_output = self.self_attention.forward(hidden_states, attention_mask)
     #2
-    add_norm_output = self.add_norm(hidden_states, attention_output, self.attention_dense, self.attention_dropout, self.attention_dropout)
+    add_norm_output = self.add_norm(hidden_states, attention_output, self.attention_dense, self.attention_dropout, self.attention_layer_norm) #fixed bug: alex
     #3
     feed_forward_output = self.interm_dense(add_norm_output)
     #feed_forward_output = self.interm_af(feed_forward_output) I'm not sure if this needs to be included or not, but maybe not?
