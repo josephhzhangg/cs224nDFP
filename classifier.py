@@ -43,9 +43,16 @@ class BertSentimentClassifier(torch.nn.Module):
                 param.requires_grad = False
             elif config.option == 'finetune':
                 param.requires_grad = True
-
+            else:
+                raise ValueError('Invalid option')
+        
+        #write the initialization code for the classifier layer
         ### TODO
-        raise NotImplementedError
+        self.dropout = torch.nn.Dropout(config.dropout)
+        self.classifier = torch.nn.Linear(config.hidden_size, self.num_labels)
+        
+
+    
 
 
     def forward(self, input_ids, attention_mask):
@@ -54,7 +61,15 @@ class BertSentimentClassifier(torch.nn.Module):
         # HINT: you should consider what is the appropriate output to return given that
         # the training loop currently uses F.cross_entropy as the loss function.
         ### TODO
-        raise NotImplementedError
+        outputs = self.bert.forward(input_ids=input_ids, attention_mask=attention_mask) # (batch_size, seq_len, hidden_size)
+        cls_output = outputs["last_hidden_state"][:, 0]  # [CLS] token
+        cls_output = self.dropout(cls_output)
+        logits = self.classifier(cls_output) 
+        return logits
+    
+
+        
+    
 
 
 
