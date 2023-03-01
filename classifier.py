@@ -48,8 +48,9 @@ class BertSentimentClassifier(torch.nn.Module):
         
         #write the initialization code for the classifier layer
         ### TODO
-        self.dropout = torch.nn.Dropout(config.dropout)
+        self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)
         self.classifier = torch.nn.Linear(config.hidden_size, self.num_labels)
+
         
 
     

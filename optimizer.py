@@ -59,7 +59,28 @@ class AdamW(Optimizer):
                 #    (incorporating the learning rate again).
 
                 ### TODO
-                raise NotImplementedError
+                lr = group["lr"]
+                betas = group["betas"]
+                eps = group["eps"]
+                weight_decay = group["weight_decay"]
+
+                if len(state) == 0:
+                    state["step"] = 0
+                    state["m_t"] = torch.zeros_like(p.data)
+                    state["v_t"] = torch.zeros_like(p.data)
+
+                state["step"] += 1
+
+                state["m_t"] = betas[0] * state["m_t"] + (1 - betas[0]) * grad
+                state["v_t"] = betas[1] * state["v_t"] + (1 - betas[1]) * (grad ** 2)
+
+                a_t = lr * math.sqrt((1 - betas[1] ** state["step"])) / (1 - betas[0] ** state["step"])
+                
+                p.data.add_(-a_t * state["m_t"] / (torch.sqrt(state["v_t"]) + eps))
+
+                p.data = p.data - weight_decay * alpha * p.data
+                
+                
 
 
         return loss
