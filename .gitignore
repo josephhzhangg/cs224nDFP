@@ -1,0 +1,6 @@
+cfimdb-classifier.pt
+sst-classifier.pt
+predictions/pretrain-cfimdb-dev-out.csv
+predictions/pretrain-cfimdb-test-out.csv
+predictions/pretrain-sst-dev-out.csv
+predictions/pretrain-sst-test-out.csv

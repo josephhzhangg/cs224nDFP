@@ -52,7 +52,12 @@ class MultitaskBERT(nn.Module):
             elif config.option == 'finetune':
                 param.requires_grad = True
         ### TODO
-        raise NotImplementedError
+        self.sentiment_classifier = nn.Linear(BERT_HIDDEN_SIZE, N_SENTIMENT_CLASSES)
+        self.paraphrase_predicter = nn.Linear(BERT_HIDDEN_SIZE, 1)
+        self.similarity_predicter = nn.Linear(BERT_HIDDEN_SIZE, 1)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+
+        
 
 
     def forward(self, input_ids, attention_mask):
@@ -62,7 +67,11 @@ class MultitaskBERT(nn.Module):
         # When thinking of improvements, you can later try modifying this
         # (e.g., by adding other layers).
         ### TODO
-        raise NotImplementedError
+        outputs = self.bert.forward(input_ids=input_ids, attention_mask=attention_mask) # (batch_size, seq_len, hidden_size)
+        #directly return outputs (without any modification?)
+        #is this correct?
+        return outputs   
+        
 
 
     def predict_sentiment(self, input_ids, attention_mask):
@@ -72,7 +81,11 @@ class MultitaskBERT(nn.Module):
         Thus, your output should contain 5 logits for each sentence.
         '''
         ### TODO
-        raise NotImplementedError
+        outputs = self.forward(input_ids, attention_mask)
+        cls_output = outputs["last_hidden_state"][:, 0]  # [CLS] token
+        cls_output = self.dropout(cls_output)
+        logits = self.sentiment_classifier(cls_output)
+        return logits
 
 
     def predict_paraphrase(self,
@@ -83,7 +96,14 @@ class MultitaskBERT(nn.Module):
         during evaluation, and handled as a logit by the appropriate loss function.
         '''
         ### TODO
-        raise NotImplementedError
+        outputs_1 = self.forward(input_ids_1, attention_mask_1)
+        outputs_2 = self.forward(input_ids_2, attention_mask_2)
+        cls_output_1 = outputs_1["last_hidden_state"][:, 0]  # [CLS] token
+        cls_output_2 = outputs_2["last_hidden_state"][:, 0]  # [CLS] token
+        cls_output_1 = self.dropout(cls_output_1)
+        cls_output_2 = self.dropout(cls_output_2)
+        logits = self.paraphrase_predicter(cls_output_1 * cls_output_2)
+        return logits
 
 
     def predict_similarity(self,
@@ -94,7 +114,14 @@ class MultitaskBERT(nn.Module):
         during evaluation, and handled as a logit by the appropriate loss function.
         '''
         ### TODO
-        raise NotImplementedError
+        outputs_1 = self.forward(input_ids_1, attention_mask_1)
+        outputs_2 = self.forward(input_ids_2, attention_mask_2)
+        cls_output_1 = outputs_1["last_hidden_state"][:, 0]  # [CLS] token
+        cls_output_2 = outputs_2["last_hidden_state"][:, 0]  # [CLS] token
+        cls_output_1 = self.dropout(cls_output_1)
+        cls_output_2 = self.dropout(cls_output_2)
+        logits = self.similarity_predicter(cls_output_1 * cls_output_2)
+        return logits
 
 
 
