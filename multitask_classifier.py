@@ -48,7 +48,6 @@ BERT_HIDDEN_SIZE = 768
 N_SENTIMENT_CLASSES = 5
 
 
-
 class MultitaskBERT(nn.Module):
     '''
     This module should use BERT for 3 tasks:
@@ -240,6 +239,8 @@ def train_multitask(args):
         #     num_batches += 1
         for batch in tqdm(combined_dataloader, desc=f'train-{epoch}'):
             # training for sentiment on sst
+            optimizer.zero_grad()
+            losses = []
             if batch[0] is not None:
                 b_ids, b_mask, b_labels = (batch[0]['token_ids'],
                                            batch[0]['attention_mask'], batch[0]['labels'])
@@ -248,27 +249,26 @@ def train_multitask(args):
                 b_mask = b_mask.to(device)
                 b_labels = b_labels.to(device)
 
-                #optimizer.zero_grad()
+                # optimizer.zero_grad()
                 logits = model.predict_sentiment(b_ids, b_mask)
                 loss = F.cross_entropy(
                     logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
-                model.zero_grad() #could not be needed
-                loss.backward()
+                # could not be needed
+                # loss.backward()
 
-
-                #grad1 = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                # grad1 = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 grad1 = model.parameters()
-                #for grad in model.parameters():
-                    #print(grad.tolist())
+                # for grad in model.parameters():
+                # print(grad.tolist())
 
-                #print(grad1)
+                # print(grad1)
                 losses.append(loss)
 
-                #optimizer.step()
+                # optimizer.step()
 
-                #train_loss += loss.item()
-                #num_batches += 1
+                # train_loss += loss.item()
+                # num_batches += 1
             # training for paraphrase on quora
             if batch[1] is not None:
                 b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (batch[1]['token_ids_1'],
@@ -285,18 +285,17 @@ def train_multitask(args):
                     b_ids_1, b_mask_1, b_ids_2, b_mask_2)
                 loss = bce_loss(
                     logits, b_labels.view(-1).type(torch.float))
-                print(loss)
-                loss.requires_grad = True
+                # print(loss)
                 # loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
-                loss.backward()
-                #grad2 = model.parameters.grad
-                #print(grad2)
-                #optimizer.step()
-                #optimizer.zero_grad()
+                # loss.backward()
+                # grad2 = model.parameters.grad
+                # print(grad2)
+                # optimizer.step()
+                # optimizer.zero_grad()
 
                 losses.append(loss)
-                #train_loss += loss.item()
-                #num_batches += 1
+                # train_loss += loss.item()
+                # num_batches += 1
             # training for similarity on sts
             if batch[2] is not None:
                 b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (batch[2]['token_ids_1'],
@@ -310,21 +309,20 @@ def train_multitask(args):
 
                 logits = model.predict_similarity(
                     b_ids_1, b_mask_1, b_ids_2, b_mask_2)
-                loss = mse_loss(logits, b_labels.view(-1))
-                loss.requires_grad = True
-                loss.backward()
-                #grad3 = model.parameters.grad
-                #print(grad3)
-                #optimizer.step()
-                #optimizer.zero_grad()
+                loss = mse_loss(logits, b_labels.view(-1).type(torch.float))
+                # loss.backward()
+                # grad3 = model.parameters.grad
+                # print(grad3)
+                # optimizer.step()
+                # optimizer.zero_grad()
 
                 losses.append(loss)
-                #train_loss += loss.item()
-                #num_batches += 1
-        optimizer.pc_backward(losses)
-        #do we zero the optimizer here
-        optimizer.step()
-        losses = []
+                # train_loss += loss.item()
+                # num_batches += 1
+            num_batches += 1
+            optimizer.pc_backward(losses)
+            # do we zero the optimizer here
+            optimizer.step()
 
         train_loss = train_loss / (num_batches)
 
