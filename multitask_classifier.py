@@ -136,7 +136,7 @@ class MultitaskBERT(nn.Module):
         logits = self.similarity_predicter(cls_output_1, cls_output_2)
         # rescale from -1 to 1 to 0 to 5
         # multiply by 2.5 and add 2.5
-        return logits
+        return logits * 2.5 + 2.5
 
 
 def save_model(model, optimizer, args, config, filepath):
@@ -202,7 +202,7 @@ def train_multitask(args):
     optimizer = AdamW(model.parameters(), lr=lr)
     best_dev_acc = 0
 
-    bce_loss = nn.BCEWithLogitsLoss()  # BCELoss
+    bce_loss = nn.BCELoss()  # BCELoss
     mse_loss = nn.MSELoss()
 
     # Run for the specified number of epochs
