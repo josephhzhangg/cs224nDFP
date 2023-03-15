@@ -1,3 +1,9 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from pcgrad import PCGrad
+
+
 import time
 import random
 import numpy as np
@@ -40,6 +46,7 @@ def seed_everything(seed=11711):
 
 BERT_HIDDEN_SIZE = 768
 N_SENTIMENT_CLASSES = 5
+
 
 
 class MultitaskBERT(nn.Module):
@@ -199,12 +206,13 @@ def train_multitask(args):
     model = model.to(device)
 
     lr = args.lr
-    optimizer = AdamW(model.parameters(), lr=lr)
+    optimizer = PCGrad(AdamW(model.parameters(), lr=lr))
     best_dev_acc = 0
 
     bce_loss = nn.BCELoss()  # BCELoss
     mse_loss = nn.MSELoss()
 
+    losses = []
     # Run for the specified number of epochs
     for epoch in range(args.epochs):
         model.train()
@@ -240,16 +248,27 @@ def train_multitask(args):
                 b_mask = b_mask.to(device)
                 b_labels = b_labels.to(device)
 
-                optimizer.zero_grad()
+                #optimizer.zero_grad()
                 logits = model.predict_sentiment(b_ids, b_mask)
                 loss = F.cross_entropy(
                     logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
+                model.zero_grad() #could not be needed
                 loss.backward()
-                optimizer.step()
 
-                train_loss += loss.item()
-                num_batches += 1
+
+                #grad1 = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                grad1 = model.parameters()
+                #for grad in model.parameters():
+                    #print(grad.tolist())
+
+                #print(grad1)
+                losses.append(loss)
+
+                #optimizer.step()
+
+                #train_loss += loss.item()
+                #num_batches += 1
             # training for paraphrase on quora
             if batch[1] is not None:
                 b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (batch[1]['token_ids_1'],
@@ -266,14 +285,18 @@ def train_multitask(args):
                     b_ids_1, b_mask_1, b_ids_2, b_mask_2)
                 loss = bce_loss(
                     logits, b_labels.view(-1).type(torch.float))
-                # print(loss)
+                print(loss)
                 loss.requires_grad = True
                 # loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
                 loss.backward()
-                optimizer.step()
-                optimizer.zero_grad()
-                train_loss += loss.item()
-                num_batches += 1
+                #grad2 = model.parameters.grad
+                #print(grad2)
+                #optimizer.step()
+                #optimizer.zero_grad()
+
+                losses.append(loss)
+                #train_loss += loss.item()
+                #num_batches += 1
             # training for similarity on sts
             if batch[2] is not None:
                 b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (batch[2]['token_ids_1'],
@@ -290,10 +313,18 @@ def train_multitask(args):
                 loss = mse_loss(logits, b_labels.view(-1))
                 loss.requires_grad = True
                 loss.backward()
-                optimizer.step()
-                optimizer.zero_grad()
-                train_loss += loss.item()
-                num_batches += 1
+                #grad3 = model.parameters.grad
+                #print(grad3)
+                #optimizer.step()
+                #optimizer.zero_grad()
+
+                losses.append(loss)
+                #train_loss += loss.item()
+                #num_batches += 1
+        optimizer.pc_backward(losses)
+        #do we zero the optimizer here
+        optimizer.step()
+        losses = []
 
         train_loss = train_loss / (num_batches)
 
