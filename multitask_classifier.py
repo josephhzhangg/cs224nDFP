@@ -29,7 +29,7 @@ from evaluation import model_eval_sst, model_eval_multitask, test_model_multitas
 
 from itertools import zip_longest
 
-TQDM_DISABLE = True
+TQDM_DISABLE = False
 
 # fix the random seed
 
@@ -72,7 +72,7 @@ class MultitaskBERT(nn.Module):
             BERT_HIDDEN_SIZE, N_SENTIMENT_CLASSES)
         self.paraphrase_predicter = nn.Linear(2*BERT_HIDDEN_SIZE, 1)
         # also show difference between cosine similarity and linear layer
-        self.similarity_predicter = nn.CosineSimilarity(dim=1, eps=1e-6)
+        self.similarity_predicter = nn.Linear(2*BERT_HIDDEN_SIZE, 1)
         # cosine similarity
         # self.cosine_similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
@@ -136,16 +136,19 @@ class MultitaskBERT(nn.Module):
         # cls_output_2 = F.normalize(cls_output_2)
         # logits = (cls_output_1 * cls_output_2).sum(dim=1)
 
-        logits = self.similarity_predicter(outputs_1, outputs_2)
+        logits = self.similarity_predicter(
+            torch.cat((outputs_1, outputs_2), dim=1)
+        )
         # rescale from -1 to 1 to 0 to 5
         # multiply by 2.5 and add 2.5
-        return logits * 2.5 + 2.5
+        logits = logits * 2.5 + 2.5
+        return logits
 
 
 def save_model(model, optimizer, args, config, filepath):
     save_info = {
         'model': model.state_dict(),
-        'optim': optimizer.state_dict(),
+        'optim': optimizer._optim.state_dict(),
         'args': args,
         'model_config': config,
         'system_rng': random.getstate(),
@@ -204,7 +207,6 @@ def train_multitask(args):
     lr = args.lr
     optimizer = PCGrad(AdamW(model.parameters(), lr=lr))
     best_dev_acc = 0
-
     bce_logits_loss = nn.BCEWithLogitsLoss()
     bce_loss = nn.BCELoss()
     mse_loss = nn.MSELoss()
@@ -235,7 +237,8 @@ def train_multitask(args):
 
         #     train_loss += loss.item()
         #     num_batches += 1
-        for batch in tqdm(combined_dataloader, desc=f'train-{epoch}'):
+        total=len(sst_train_dataloader) + len(quora_train_dataloader) + len(sts_train_dataloader)
+        for batch in tqdm(combined_dataloader, desc=f'train-{epoch}', total=total, disable=TQDM_DISABLE):
             # training for sentiment on sst
             optimizer.zero_grad()
             losses = []
@@ -285,12 +288,12 @@ def train_multitask(args):
                 logits = torch.sigmoid(logits)
                 # torch.clamp(logits, 0, 1)
                 # torch.clamp(b_labels, 0, 1)
-                print(torch.min(b_labels))
-                print(torch.max(b_labels))
-                print(torch.min(logits))
-                print(torch.max(logits))
-                print(b_labels.shape)
-                print(logits.shape)
+                # print(torch.min(b_labels))
+                # print(torch.max(b_labels))
+                # print(torch.min(logits))
+                # print(torch.max(logits))
+                # print(b_labels.shape)
+                # print(logits.shape)
                 loss = bce_loss(
                     logits.squeeze(), b_labels.view(-1).type(torch.float))
 
@@ -318,7 +321,7 @@ def train_multitask(args):
 
                 logits = model.predict_similarity(
                     b_ids_1, b_mask_1, b_ids_2, b_mask_2)
-                loss = mse_loss(logits, b_labels.view(-1).type(torch.float))
+                loss = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float))
                 # loss.backward()
                 # grad3 = model.parameters.grad
                 # print(grad3)
