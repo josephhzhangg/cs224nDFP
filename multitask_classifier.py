@@ -70,7 +70,8 @@ class MultitaskBERT(nn.Module):
         # TODO
         self.sentiment_classifier = nn.Linear(
             BERT_HIDDEN_SIZE, N_SENTIMENT_CLASSES)
-        self.paraphrase_predicter = nn.CosineSimilarity(dim=1, eps=1e-6)
+        self.paraphrase_predicter = nn.Linear(2*BERT_HIDDEN_SIZE, 1)
+        # also show difference between cosine similarity and linear layer
         self.similarity_predicter = nn.CosineSimilarity(dim=1, eps=1e-6)
         # cosine similarity
         # self.cosine_similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
@@ -88,7 +89,7 @@ class MultitaskBERT(nn.Module):
             input_ids=input_ids, attention_mask=attention_mask)
         # directly return outputs (without any modification?)
         # is this correct?
-        return outputs
+        return outputs['pooler_output']
 
     def predict_sentiment(self, input_ids, attention_mask):
         '''Given a batch of sentences, outputs logits for classifying sentiment.
@@ -98,9 +99,8 @@ class MultitaskBERT(nn.Module):
         '''
         # TODO
         outputs = self.forward(input_ids, attention_mask)
-        cls_output = outputs["last_hidden_state"][:, 0]  # [CLS] token
-        cls_output = self.dropout(cls_output)
-        logits = self.sentiment_classifier(cls_output)
+        outputs = self.dropout(outputs)
+        logits = self.sentiment_classifier(outputs)
         return logits
 
     def predict_paraphrase(self,
@@ -113,11 +113,10 @@ class MultitaskBERT(nn.Module):
         # TODO
         outputs_1 = self.forward(input_ids_1, attention_mask_1)
         outputs_2 = self.forward(input_ids_2, attention_mask_2)
-        cls_output_1 = outputs_1["last_hidden_state"][:, 0]  # [CLS] token
-        cls_output_2 = outputs_2["last_hidden_state"][:, 0]  # [CLS] token
-        cls_output_1 = self.dropout(cls_output_1)
-        cls_output_2 = self.dropout(cls_output_2)
-        logits = self.paraphrase_predicter(cls_output_1, cls_output_2)
+        outputs_1 = self.dropout(outputs_1)
+        outputs_2 = self.dropout(outputs_2)
+        logits = self.paraphrase_predicter(
+            torch.cat((outputs_1, outputs_2), dim=1))
         return logits
 
     def predict_similarity(self,
@@ -130,16 +129,14 @@ class MultitaskBERT(nn.Module):
         # TODO
         outputs_1 = self.forward(input_ids_1, attention_mask_1)
         outputs_2 = self.forward(input_ids_2, attention_mask_2)
-        cls_output_1 = outputs_1["last_hidden_state"][:, 0]  # [CLS] token
-        cls_output_2 = outputs_2["last_hidden_state"][:, 0]  # [CLS] token
-        cls_output_1 = self.dropout(cls_output_1)
-        cls_output_2 = self.dropout(cls_output_2)
+        outputs_1 = self.dropout(outputs_1)
+        outputs_2 = self.dropout(outputs_2)
 
         # cls_output_1 = F.normalize(cls_output_1)
         # cls_output_2 = F.normalize(cls_output_2)
         # logits = (cls_output_1 * cls_output_2).sum(dim=1)
 
-        logits = self.similarity_predicter(cls_output_1, cls_output_2)
+        logits = self.similarity_predicter(outputs_1, outputs_2)
         # rescale from -1 to 1 to 0 to 5
         # multiply by 2.5 and add 2.5
         return logits * 2.5 + 2.5
@@ -208,7 +205,8 @@ def train_multitask(args):
     optimizer = PCGrad(AdamW(model.parameters(), lr=lr))
     best_dev_acc = 0
 
-    bce_loss = nn.BCELoss()  # BCELoss
+    bce_logits_loss = nn.BCEWithLogitsLoss()
+    bce_loss = nn.BCELoss()
     mse_loss = nn.MSELoss()
 
     losses = []
@@ -283,8 +281,19 @@ def train_multitask(args):
 
                 logits = model.predict_paraphrase(
                     b_ids_1, b_mask_1, b_ids_2, b_mask_2)
+                # apply sigmoid to logits
+                logits = torch.sigmoid(logits)
+                # torch.clamp(logits, 0, 1)
+                # torch.clamp(b_labels, 0, 1)
+                print(torch.min(b_labels))
+                print(torch.max(b_labels))
+                print(torch.min(logits))
+                print(torch.max(logits))
+                print(b_labels.shape)
+                print(logits.shape)
                 loss = bce_loss(
-                    logits, b_labels.view(-1).type(torch.float))
+                    logits.squeeze(), b_labels.view(-1).type(torch.float))
+
                 # print(loss)
                 # loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
                 # loss.backward()
