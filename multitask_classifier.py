@@ -144,11 +144,10 @@ class MultitaskBERT(nn.Module):
         logits = logits * 2.5 + 2.5
         return logits
 
-
+# optimizer._optimizer.state_dict() for gradient surgery
 def save_model(model, optimizer, args, config, filepath):
     save_info = {
         'model': model.state_dict(),
-        # optimizer._optimizer.state_dict() for gradient surgery
         'optim': optimizer.state_dict(),
         'args': args,
         'model_config': config,
@@ -156,7 +155,7 @@ def save_model(model, optimizer, args, config, filepath):
         'numpy_rng': np.random.get_state(),
         'torch_rng': torch.random.get_rng_state(),
     }
-
+    print("successfully get the state dict of the model")
     torch.save(save_info, filepath)
     print(f"save the model to {filepath}")
 
@@ -214,6 +213,8 @@ def train_multitask(args):
     mse_loss = nn.MSELoss()
 
     losses = []
+    save_model(model, optimizer, args, config, args.filepath)
+    print("finished saving model")
     # Run for the specified number of epochs
     for epoch in range(args.epochs):
         model.train()
