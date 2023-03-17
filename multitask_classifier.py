@@ -217,9 +217,6 @@ def train_multitask(args):
         model.train()
         train_loss = 0
         num_batches = 0
-
-        combined_dataloader = zip_longest(
-            sst_train_dataloader, quora_train_dataloader, sts_train_dataloader)
         # for batch in tqdm(sst_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
         #     b_ids, b_mask, b_labels = (batch['token_ids'],
         #                                batch['attention_mask'], batch['labels'])
@@ -237,94 +234,115 @@ def train_multitask(args):
 
         #     train_loss += loss.item()
         #     num_batches += 1
-        total=len(sst_train_dataloader) + len(quora_train_dataloader) + len(sts_train_dataloader)
-        for batch in tqdm(combined_dataloader, desc=f'train-{epoch}', total=total, disable=TQDM_DISABLE):
+        longest_len = max(len(sst_train_dataloader), len(quora_train_dataloader), len(sts_train_dataloader))
+        sst_train_dataloader = iter(sst_train_dataloader)
+        quora_train_dataloader = iter(quora_train_dataloader)
+        sts_train_dataloader = iter(sts_train_dataloader)
+        for i in tqdm(range(longest_len), desc=f'train-{epoch}', disable=TQDM_DISABLE):
             # training for sentiment on sst
             optimizer.zero_grad()
             losses = []
-            if batch[0] is not None:
-                b_ids, b_mask, b_labels = (batch[0]['token_ids'],
-                                           batch[0]['attention_mask'], batch[0]['labels'])
+            try:
+                sentiment_batch = next(sst_train_dataloader)
+            except StopIteration:
+                sst_train_dataloader = iter(sst_train_dataloader)
+                sentiment_batch = next(sst_train_dataloader)
+            b_ids, b_mask, b_labels = (sentiment_batch['token_ids'],
+                                        sentiment_batch['attention_mask'], sentiment_batch['labels'])
 
-                b_ids = b_ids.to(device)
-                b_mask = b_mask.to(device)
-                b_labels = b_labels.to(device)
+            b_ids = b_ids.to(device)
+            b_mask = b_mask.to(device)
+            b_labels = b_labels.to(device)
 
-                # optimizer.zero_grad()
-                logits = model.predict_sentiment(b_ids, b_mask)
-                loss = F.cross_entropy(
-                    logits, b_labels.view(-1), reduction='sum') / args.batch_size
+            # optimizer.zero_grad()
+            logits = model.predict_sentiment(b_ids, b_mask)
+            loss = F.cross_entropy(
+                logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
-                # could not be needed
-                # loss.backward()
+            # could not be needed
+            # loss.backward()
 
-                # grad1 = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-                # grad1 = model.parameters()
-                # for grad in model.parameters():
-                # print(grad.tolist())
+            # grad1 = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            # grad1 = model.parameters()
+            # for grad in model.parameters():
+            # print(grad.tolist())
 
-                # print(grad1)
-                # losses.append(loss)
+            # print(grad1)
+            # losses.append(loss)
 
-                # optimizer.step()
+            # optimizer.step()
 
-                train_loss += loss.item()
-                # num_batches += 1
-            # training for paraphrase on quora
-            if batch[1] is not None:
-                b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (batch[1]['token_ids_1'],
-                                                                  batch[1]['attention_mask_1'], batch[1]['token_ids_2'],
-                                                                  batch[1]['attention_mask_2'], batch[1]['labels'])
+            train_loss += loss.item()
+            # num_batches += 1
+            try:
+                paraphrase_batch = next(quora_train_dataloader)
+            except StopIteration:
+                quora_train_dataloader = iter(quora_train_dataloader)
+                paraphrase_batch = next(quora_train_dataloader)
+            # training for paraphrase on quora 
+            b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (paraphrase_batch['token_ids_1'],
+                                                            paraphrase_batch['attention_mask_1'],
+                                                            paraphrase_batch['token_ids_2'],
+                                                            paraphrase_batch['attention_mask_2'],
+                                                            paraphrase_batch['labels'])
 
-                b_ids_1 = b_ids_1.to(device)
-                b_mask_1 = b_mask_1.to(device)
-                b_ids_2 = b_ids_2.to(device)
-                b_mask_2 = b_mask_2.to(device)
-                b_labels = b_labels.to(device)
+            b_ids_1 = b_ids_1.to(device)
+            b_mask_1 = b_mask_1.to(device)
+            b_ids_2 = b_ids_2.to(device)
+            b_mask_2 = b_mask_2.to(device)
+            b_labels = b_labels.to(device)
 
-                logits = model.predict_paraphrase(
-                    b_ids_1, b_mask_1, b_ids_2, b_mask_2)
-                # apply sigmoid to logits
-                logits = torch.sigmoid(logits)
-                # torch.clamp(logits, 0, 1)
-                # torch.clamp(b_labels, 0, 1)
-                # print(torch.min(b_labels))
-                # print(torch.max(b_labels))
-                # print(torch.min(logits))
-                # print(torch.max(logits))
-                # print(b_labels.shape)
-                # print(logits.shape)
-                loss = bce_loss(
-                    logits.squeeze(), b_labels.view(-1).type(torch.float))
+            logits = model.predict_paraphrase(
+                b_ids_1, b_mask_1, b_ids_2, b_mask_2)
+            # apply sigmoid to logits
+            logits = torch.sigmoid(logits)
+            # torch.clamp(logits, 0, 1)
+            # torch.clamp(b_labels, 0, 1)
+            # print(torch.min(b_labels))
+            # print(torch.max(b_labels))
+            # print(torch.min(logits))
+            # print(torch.max(logits))
+            # print(b_labels.shape)
+            # print(logits.shape)
+            loss = bce_loss(
+                logits.squeeze(), b_labels.view(-1).type(torch.float))
 
-                # print(loss)
-                # loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
-                # loss.backward()
-                # grad2 = model.parameters.grad
-                # print(grad2)
-                # optimizer.step()
-                # optimizer.zero_grad()
+            # print(loss)
+            # loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
+            # loss.backward()
+            # grad2 = model.parameters.grad
+            # print(grad2)
+            # optimizer.step()
+            # optimizer.zero_grad()
 
-                # losses.append(loss)
-                train_loss += loss.item()
-                # num_batches += 1
+            # losses.append(loss)
+            train_loss += loss.item()
+            # num_batches += 1
             # training for similarity on sts
-            if batch[2] is not None:
-                b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (batch[2]['token_ids_1'],
-                                                                  batch[2]['attention_mask_1'], batch[2]['token_ids_2'],
-                                                                  batch[2]['attention_mask_2'], batch[2]['labels'])
-                b_ids_1 = b_ids_1.to(device)
-                b_mask_1 = b_mask_1.to(device)
-                b_ids_2 = b_ids_2.to(device)
-                b_mask_2 = b_mask_2.to(device)
-                b_labels = b_labels.to(device)
+            try:
+                similarity_batch = next(sts_train_dataloader)
+            except StopIteration:
+                sts_train_dataloader = iter(sts_train_dataloader)
+                similarity_batch = next(sts_train_dataloader)
 
-                logits = model.predict_similarity(
-                    b_ids_1, b_mask_1, b_ids_2, b_mask_2)
-                loss = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float))
-                # losses.append(loss)
-                train_loss += loss.item()
-                # num_batches += 1
+
+            b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (similarity_batch['token_ids_1'],
+                                                            similarity_batch['attention_mask_1'],
+                                                            similarity_batch['token_ids_2'],
+                                                            similarity_batch['attention_mask_2'],
+                                                            similarity_batch['labels'])
+            b_ids_1 = b_ids_1.to(device)
+            b_mask_1 = b_mask_1.to(device)
+            b_ids_2 = b_ids_2.to(device)
+            b_mask_2 = b_mask_2.to(device)
+            b_labels = b_labels.to(device)
+
+            logits = model.predict_similarity(
+                b_ids_1, b_mask_1, b_ids_2, b_mask_2)
+            loss = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float))
+            # losses.append(loss)
+            train_loss += loss.item()
+            # num_batches += 1
             num_batches += 1
             
             loss.backward()
