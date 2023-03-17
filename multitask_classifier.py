@@ -259,16 +259,16 @@ def train_multitask(args):
                 # loss.backward()
 
                 # grad1 = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-                grad1 = model.parameters()
+                # grad1 = model.parameters()
                 # for grad in model.parameters():
                 # print(grad.tolist())
 
                 # print(grad1)
-                losses.append(loss)
+                # losses.append(loss)
 
                 # optimizer.step()
 
-                # train_loss += loss.item()
+                train_loss += loss.item()
                 # num_batches += 1
             # training for paraphrase on quora
             if batch[1] is not None:
@@ -305,8 +305,8 @@ def train_multitask(args):
                 # optimizer.step()
                 # optimizer.zero_grad()
 
-                losses.append(loss)
-                # train_loss += loss.item()
+                # losses.append(loss)
+                train_loss += loss.item()
                 # num_batches += 1
             # training for similarity on sts
             if batch[2] is not None:
@@ -322,18 +322,13 @@ def train_multitask(args):
                 logits = model.predict_similarity(
                     b_ids_1, b_mask_1, b_ids_2, b_mask_2)
                 loss = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float))
-                # loss.backward()
-                # grad3 = model.parameters.grad
-                # print(grad3)
-                # optimizer.step()
-                # optimizer.zero_grad()
-
-                losses.append(loss)
-                # train_loss += loss.item()
+                # losses.append(loss)
+                train_loss += loss.item()
                 # num_batches += 1
             num_batches += 1
-            optimizer.pc_backward(losses)
-            # do we zero the optimizer here
+            
+            loss.backward()
+            # optimizer.pc_backward(losses)
             optimizer.step()
 
         train_loss = train_loss / (num_batches)
