@@ -212,9 +212,7 @@ def train_multitask(args):
     bce_loss = nn.BCELoss()
     mse_loss = nn.MSELoss()
 
-    losses = []
-    save_model(model, optimizer, args, config, args.filepath)
-    print("finished saving model")
+    # losses = []
     # Run for the specified number of epochs
     for epoch in range(args.epochs):
         model.train()
@@ -238,13 +236,15 @@ def train_multitask(args):
         #     train_loss += loss.item()
         #     num_batches += 1
         longest_len = max(len(sst_train_dataloader), len(quora_train_dataloader), len(sts_train_dataloader))
-        sst_train_dataloader = cycle(sst_train_dataloader)
-        quora_train_dataloader = cycle(quora_train_dataloader)
-        sts_train_dataloader = cycle(sts_train_dataloader)
+
+        cycle_sst_train_dataloader = cycle(sst_train_dataloader)
+        cycle_quora_train_dataloader = cycle(quora_train_dataloader)
+        cycle_sts_train_dataloader = cycle(sts_train_dataloader)
+
         for i in tqdm(range(longest_len), desc=f'train-{epoch}', disable=TQDM_DISABLE):
             # training for sentiment on sst
             optimizer.zero_grad()
-            sentiment_batch = next(sst_train_dataloader)
+            sentiment_batch = next(cycle_sst_train_dataloader)
             b_ids, b_mask, b_labels = (sentiment_batch['token_ids'],
                                         sentiment_batch['attention_mask'], sentiment_batch['labels'])
             b_ids = b_ids.to(device)
@@ -257,7 +257,7 @@ def train_multitask(args):
             num_batches += 1
 
             # training for paraphrase on quora 
-            paraphrase_batch = next(quora_train_dataloader)
+            paraphrase_batch = next(cycle_quora_train_dataloader)
             b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (paraphrase_batch['token_ids_1'],
                                                             paraphrase_batch['attention_mask_1'],
                                                             paraphrase_batch['token_ids_2'],
@@ -279,7 +279,7 @@ def train_multitask(args):
             num_batches += 1
 
             # training for similarity on sts
-            similarity_batch = next(sts_train_dataloader)
+            similarity_batch = next(cycle_sts_train_dataloader)
 
 
             b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (similarity_batch['token_ids_1'],
