@@ -27,7 +27,7 @@ from datasets import SentenceClassificationDataset, SentencePairDataset, \
 
 from evaluation import model_eval_sst, model_eval_multitask, test_model_multitask
 
-from itertools import zip_longest
+from itertools import cycle
 
 TQDM_DISABLE = False
 
@@ -235,9 +235,9 @@ def train_multitask(args):
         #     train_loss += loss.item()
         #     num_batches += 1
         longest_len = max(len(sst_train_dataloader), len(quora_train_dataloader), len(sts_train_dataloader))
-        sst_train_dataloader = iter(sst_train_dataloader)
-        quora_train_dataloader = iter(quora_train_dataloader)
-        sts_train_dataloader = iter(sts_train_dataloader)
+        sst_train_dataloader = cycle(sst_train_dataloader)
+        quora_train_dataloader = cycle(quora_train_dataloader)
+        sts_train_dataloader = cycle(sts_train_dataloader)
         for i in tqdm(range(longest_len), desc=f'train-{epoch}', disable=TQDM_DISABLE):
             # training for sentiment on sst
             optimizer.zero_grad()
@@ -274,11 +274,7 @@ def train_multitask(args):
 
             train_loss += loss.item()
             # num_batches += 1
-            try:
-                paraphrase_batch = next(quora_train_dataloader)
-            except StopIteration:
-                quora_train_dataloader = iter(quora_train_dataloader)
-                paraphrase_batch = next(quora_train_dataloader)
+            paraphrase_batch = next(quora_train_dataloader)
             # training for paraphrase on quora 
             b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (paraphrase_batch['token_ids_1'],
                                                             paraphrase_batch['attention_mask_1'],
@@ -319,11 +315,7 @@ def train_multitask(args):
             train_loss += loss.item()
             # num_batches += 1
             # training for similarity on sts
-            try:
-                similarity_batch = next(sts_train_dataloader)
-            except StopIteration:
-                sts_train_dataloader = iter(sts_train_dataloader)
-                similarity_batch = next(sts_train_dataloader)
+            similarity_batch = next(sts_train_dataloader)
 
 
             b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (similarity_batch['token_ids_1'],
