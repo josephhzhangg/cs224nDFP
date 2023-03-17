@@ -241,43 +241,25 @@ def train_multitask(args):
         for i in tqdm(range(longest_len), desc=f'train-{epoch}', disable=TQDM_DISABLE):
             # training for sentiment on sst
             optimizer.zero_grad()
-            # losses = []
             sentiment_batch = next(sst_train_dataloader)
             b_ids, b_mask, b_labels = (sentiment_batch['token_ids'],
                                         sentiment_batch['attention_mask'], sentiment_batch['labels'])
-
             b_ids = b_ids.to(device)
             b_mask = b_mask.to(device)
             b_labels = b_labels.to(device)
-
-            
             logits = model.predict_sentiment(b_ids, b_mask)
             loss1 = F.cross_entropy(
                 logits, b_labels.view(-1), reduction='sum') / args.batch_size
             train_loss += loss1.item()
             num_batches += 1
-            # could not be needed
-            # loss.backward()
 
-            # grad1 = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            # grad1 = model.parameters()
-            # for grad in model.parameters():
-            # print(grad.tolist())
-
-            # print(grad1)
-            # losses.append(loss)
-
-            # optimizer.step()
-            
-            # num_batches += 1
-            paraphrase_batch = next(quora_train_dataloader)
             # training for paraphrase on quora 
+            paraphrase_batch = next(quora_train_dataloader)
             b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (paraphrase_batch['token_ids_1'],
                                                             paraphrase_batch['attention_mask_1'],
                                                             paraphrase_batch['token_ids_2'],
                                                             paraphrase_batch['attention_mask_2'],
                                                             paraphrase_batch['labels'])
-
             b_ids_1 = b_ids_1.to(device)
             b_mask_1 = b_mask_1.to(device)
             b_ids_2 = b_ids_2.to(device)
@@ -288,28 +270,10 @@ def train_multitask(args):
                 b_ids_1, b_mask_1, b_ids_2, b_mask_2)
             # apply sigmoid to logits
             logits = torch.sigmoid(logits)
-            # torch.clamp(logits, 0, 1)
-            # torch.clamp(b_labels, 0, 1)
-            # print(torch.min(b_labels))
-            # print(torch.max(b_labels))
-            # print(torch.min(logits))
-            # print(torch.max(logits))
-            # print(b_labels.shape)
-            # print(logits.shape)
             loss2 = bce_loss(
                 logits.squeeze(), b_labels.view(-1).type(torch.float))
             train_loss += loss2.item()
             num_batches += 1
-            # print(loss)
-            # loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
-            # loss.backward()
-            # grad2 = model.parameters.grad
-            # print(grad2)
-            # optimizer.step()
-            # optimizer.zero_grad()
-
-            # losses.append(loss)
-            # num_batches += 1
 
             # training for similarity on sts
             similarity_batch = next(sts_train_dataloader)
@@ -329,13 +293,10 @@ def train_multitask(args):
             logits = model.predict_similarity(
                 b_ids_1, b_mask_1, b_ids_2, b_mask_2)
             loss3 = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float))
-            # losses.append(loss)
             train_loss += loss3.item()
-            # num_batches += 1
             num_batches += 1
             loss = loss1 + loss2 + loss3
             loss.backward()
-            # optimizer.pc_backward(losses)
             optimizer.step()
 
         train_loss = train_loss / (num_batches)
@@ -410,7 +371,7 @@ def get_args():
 
     # hyper parameters
     parser.add_argument(
-        "--batch_size", help='sst: 64, cfimdb: 8 can fit a 12GB GPU', type=int, default=8)
+        "--batch_size", help='sst: 64, cfimdb: 8 can fit a 12GB GPU', type=int, default=32)
     parser.add_argument("--hidden_dropout_prob", type=float, default=0.3)
     parser.add_argument("--lr", type=float, help="learning rate, default lr for 'pretrain': 1e-3, 'finetune': 1e-5",
                         default=1e-5)
