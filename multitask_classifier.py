@@ -240,7 +240,7 @@ def train_multitask(args):
         sts_train_dataloader = cycle(sts_train_dataloader)
         for i in tqdm(range(longest_len), desc=f'train-{epoch}', disable=TQDM_DISABLE):
             # training for sentiment on sst
-            # optimizer.zero_grad()
+            optimizer.zero_grad()
             # losses = []
             sentiment_batch = next(sst_train_dataloader)
             b_ids, b_mask, b_labels = (sentiment_batch['token_ids'],
@@ -250,14 +250,12 @@ def train_multitask(args):
             b_mask = b_mask.to(device)
             b_labels = b_labels.to(device)
 
-            optimizer.zero_grad()
+            
             logits = model.predict_sentiment(b_ids, b_mask)
-            loss = F.cross_entropy(
+            loss1 = F.cross_entropy(
                 logits, b_labels.view(-1), reduction='sum') / args.batch_size
-            loss.backward()
-            train_loss += loss.item()
+            train_loss += loss1.item()
             num_batches += 1
-            optimizer.step()
             # could not be needed
             # loss.backward()
 
@@ -298,13 +296,10 @@ def train_multitask(args):
             # print(torch.max(logits))
             # print(b_labels.shape)
             # print(logits.shape)
-            optimizer.zero_grad()
-            loss = bce_loss(
+            loss2 = bce_loss(
                 logits.squeeze(), b_labels.view(-1).type(torch.float))
-            loss.backward()
-            train_loss += loss.item()
+            train_loss += loss2.item()
             num_batches += 1
-            optimizer.step()
             # print(loss)
             # loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
             # loss.backward()
@@ -333,13 +328,13 @@ def train_multitask(args):
             
             logits = model.predict_similarity(
                 b_ids_1, b_mask_1, b_ids_2, b_mask_2)
-            optimizer.zero_grad()
-            loss = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float))
-            loss.backward()
+            loss3 = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float))3
             # losses.append(loss)
-            train_loss += loss.item()
+            train_loss += loss3.item()
             # num_batches += 1
             num_batches += 1
+            loss = loss1 + loss2 + loss3
+            loss.backward()
             # optimizer.pc_backward(losses)
             optimizer.step()
 
