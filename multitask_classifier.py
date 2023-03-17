@@ -240,13 +240,9 @@ def train_multitask(args):
         sts_train_dataloader = cycle(sts_train_dataloader)
         for i in tqdm(range(longest_len), desc=f'train-{epoch}', disable=TQDM_DISABLE):
             # training for sentiment on sst
-            optimizer.zero_grad()
-            losses = []
-            try:
-                sentiment_batch = next(sst_train_dataloader)
-            except StopIteration:
-                sst_train_dataloader = iter(sst_train_dataloader)
-                sentiment_batch = next(sst_train_dataloader)
+            # optimizer.zero_grad()
+            # losses = []
+            sentiment_batch = next(sst_train_dataloader)
             b_ids, b_mask, b_labels = (sentiment_batch['token_ids'],
                                         sentiment_batch['attention_mask'], sentiment_batch['labels'])
 
@@ -254,11 +250,14 @@ def train_multitask(args):
             b_mask = b_mask.to(device)
             b_labels = b_labels.to(device)
 
-            # optimizer.zero_grad()
+            optimizer.zero_grad()
             logits = model.predict_sentiment(b_ids, b_mask)
             loss = F.cross_entropy(
                 logits, b_labels.view(-1), reduction='sum') / args.batch_size
-
+            loss.backward()
+            train_loss += loss.item()
+            num_batches += 1
+            optimizer.step()
             # could not be needed
             # loss.backward()
 
@@ -271,8 +270,7 @@ def train_multitask(args):
             # losses.append(loss)
 
             # optimizer.step()
-
-            train_loss += loss.item()
+            
             # num_batches += 1
             paraphrase_batch = next(quora_train_dataloader)
             # training for paraphrase on quora 
@@ -300,9 +298,13 @@ def train_multitask(args):
             # print(torch.max(logits))
             # print(b_labels.shape)
             # print(logits.shape)
+            optimizer.zero_grad()
             loss = bce_loss(
                 logits.squeeze(), b_labels.view(-1).type(torch.float))
-
+            loss.backward()
+            train_loss += loss.item()
+            num_batches += 1
+            optimizer.step()
             # print(loss)
             # loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
             # loss.backward()
@@ -312,8 +314,8 @@ def train_multitask(args):
             # optimizer.zero_grad()
 
             # losses.append(loss)
-            train_loss += loss.item()
             # num_batches += 1
+
             # training for similarity on sts
             similarity_batch = next(sts_train_dataloader)
 
@@ -328,16 +330,16 @@ def train_multitask(args):
             b_ids_2 = b_ids_2.to(device)
             b_mask_2 = b_mask_2.to(device)
             b_labels = b_labels.to(device)
-
+            
             logits = model.predict_similarity(
                 b_ids_1, b_mask_1, b_ids_2, b_mask_2)
+            optimizer.zero_grad()
             loss = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float))
+            loss.backward()
             # losses.append(loss)
             train_loss += loss.item()
             # num_batches += 1
             num_batches += 1
-            
-            loss.backward()
             # optimizer.pc_backward(losses)
             optimizer.step()
 
