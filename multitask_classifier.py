@@ -148,6 +148,7 @@ class MultitaskBERT(nn.Module):
 def save_model(model, optimizer, args, config, filepath):
     save_info = {
         'model': model.state_dict(),
+        # optimizer._optimizer.state_dict() for gradient surgery
         'optim': optimizer.state_dict(),
         'args': args,
         'model_config': config,
@@ -205,7 +206,8 @@ def train_multitask(args):
     model = model.to(device)
 
     lr = args.lr
-    optimizer = PCGrad(AdamW(model.parameters(), lr=lr))
+    optimizer = AdamW(model.parameters(), lr=lr)
+    # optimizer = PCGrad(AdamW(model.parameters(), lr=lr))
     best_dev_acc = 0
     bce_logits_loss = nn.BCEWithLogitsLoss()
     bce_loss = nn.BCELoss()
