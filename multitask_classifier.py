@@ -277,7 +277,7 @@ def train_multitask(args):
             # apply sigmoid to logits
             logits = torch.sigmoid(logits)
             loss2 = bce_loss(
-                logits.squeeze(), b_labels.view(-1).type(torch.float))
+                logits.squeeze(), b_labels.view(-1).type(torch.float)) / args.batch_size
             train_loss += loss2.item()
             num_batches += 1
 
@@ -298,7 +298,7 @@ def train_multitask(args):
             
             logits = model.predict_similarity(
                 b_ids_1, b_mask_1, b_ids_2, b_mask_2)
-            loss3 = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float))
+            loss3 = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float)) / args.batch_size
             train_loss += loss3.item()
             num_batches += 1
             loss = loss1 + loss2 + loss3
