@@ -72,7 +72,7 @@ class MultitaskBERT(nn.Module):
             BERT_HIDDEN_SIZE, N_SENTIMENT_CLASSES)
         self.paraphrase_predicter = nn.Linear(2*BERT_HIDDEN_SIZE, 1)
         # also show difference between cosine similarity and linear layer
-        self.similarity_predicter = nn.Linear(2*BERT_HIDDEN_SIZE, 1)
+        self.similarity_predicter = nn.Sequential(nn.Linear(2*BERT_HIDDEN_SIZE, 1), nn.ReLU(), nn.Linear(BERT_HIDDEN_SIZE, 1))
         # cosine similarity
         self.cosine_similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
@@ -136,11 +136,11 @@ class MultitaskBERT(nn.Module):
         # cls_output_2 = F.normalize(cls_output_2)
         # logits = (cls_output_1 * cls_output_2).sum(dim=1)
 
-        # logits = self.similarity_predicter(
-        #     torch.cat((outputs_1, outputs_2), dim=1)
-        # )
-        #use cosine similarity
-        logits = self.cosine_similarity(outputs_1, outputs_2)
+        logits = self.similarity_predicter(
+            torch.cat((outputs_1, outputs_2), dim=1)
+        )
+        # #use cosine similarity
+        # logits = self.cosine_similarity(outputs_1, outputs_2)
         #cosine similarity outputs a value between -1 and 1
         #we want to output a class between 0 and 5
         #so we need to scale the output
