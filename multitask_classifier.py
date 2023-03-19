@@ -320,7 +320,7 @@ def train_multitask(args):
                 b_ids_1, b_mask_1, b_ids_2, b_mask_2)
             loss3 = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float)) / args.batch_size
             # train_loss += loss3.item()
-            # num_batches += 1
+            num_batches += 1
             train_loss += loss1.item() + loss2.item() + loss3.item()
             losses = [loss1, loss2, loss3]
             # loss.backward()
