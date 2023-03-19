@@ -68,11 +68,11 @@ class MultitaskBERT(nn.Module):
             elif config.option == 'finetune':
                 param.requires_grad = True
         # TODO
-        self.sentiment_classifier = nn.Linear(
-            BERT_HIDDEN_SIZE, N_SENTIMENT_CLASSES)
+        #changed sentiment classifier to use relu
+        self.sentiment_classifier = nn.Linear(BERT_HIDDEN_SIZE, N_SENTIMENT_CLASSES)
         self.paraphrase_predicter = nn.Linear(2*BERT_HIDDEN_SIZE, 1)
         # also show difference between cosine similarity and linear layer
-        self.similarity_predicter = nn.Sequential(nn.Linear(2*BERT_HIDDEN_SIZE, 1), nn.ReLU(), nn.Linear(BERT_HIDDEN_SIZE, 1))
+        self.similarity_predicter = nn.Linear(2*BERT_HIDDEN_SIZE, 1)
         # cosine similarity
         self.cosine_similarity = nn.CosineSimilarity(dim=1, eps=1e-6)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
@@ -151,7 +151,7 @@ class MultitaskBERT(nn.Module):
 def save_model(model, optimizer, args, config, filepath):
     save_info = {
         'model': model.state_dict(),
-        'optim': optimizer.state_dict(),
+        'optim': optimizer._optimizer.state_dict(),
         'args': args,
         'model_config': config,
         'system_rng': random.getstate(),
@@ -208,41 +208,61 @@ def train_multitask(args):
     model = model.to(device)
 
     lr = args.lr
-    optimizer = AdamW(model.parameters(), lr=lr)
-    # optimizer = PCGrad(AdamW(model.parameters(), lr=lr))
+    # optimizer = AdamW(model.parameters(), lr=lr)
+    #use weight decay for l2 regularization
+    # optimizer = AdamW(model.parameters(), lr=lr, weight_decay=args.weight_decay)
+    optimizer = PCGrad(AdamW(model.parameters(), lr=lr))
     best_dev_acc = 0
     bce_logits_loss = nn.BCEWithLogitsLoss()
     bce_loss = nn.BCELoss()
     mse_loss = nn.MSELoss()
 
-    # losses = []
     # Run for the specified number of epochs
+
+    # # Train on the similarity task first
+    # for epoch in range(args.epochs):
+    #     model.train()
+    #     train_loss = 0
+    #     num_batches = 0
+    
+    #     for similarity_batch in tqdm(sts_train_dataloader, desc=f'similarity_pretrain-{epoch}', disable=TQDM_DISABLE):
+    #         optimizer.zero_grad()
+    
+    #         b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (similarity_batch['token_ids_1'],
+    #                                                         similarity_batch['attention_mask_1'],
+    #                                                         similarity_batch['token_ids_2'],
+    #                                                         similarity_batch['attention_mask_2'],
+    #                                                         similarity_batch['labels'])
+    #         b_ids_1 = b_ids_1.to(device)
+    #         b_mask_1 = b_mask_1.to(device)
+    #         b_ids_2 = b_ids_2.to(device)
+    #         b_mask_2 = b_mask_2.to(device)
+    #         b_labels = b_labels.to(device)
+    
+    #         logits = model.predict_similarity(b_ids_1, b_mask_1, b_ids_2, b_mask_2)
+    #         loss = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float)) / args.batch_size
+    #         train_loss += loss.item()
+    #         num_batches += 1
+    
+    #         loss.backward()
+    #         optimizer.step()
+
+    # train_loss = train_loss / num_batches
+    # print(f"Similarity Pretrain Epoch {epoch}: train loss :: {train_loss :.3f}")
+
+    #then train on everything else
     for epoch in range(args.epochs):
         model.train()
         train_loss = 0
         num_batches = 0
-        # for batch in tqdm(sst_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
-        #     b_ids, b_mask, b_labels = (batch['token_ids'],
-        #                                batch['attention_mask'], batch['labels'])
-
-        #     b_ids = b_ids.to(device)
-        #     b_mask = b_mask.to(device)
-        #     b_labels = b_labels.to(device)
-
-        #     optimizer.zero_grad()
-        #     logits = model.predict_sentiment(b_ids, b_mask)
-        #     loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
-
-        #     loss.backward()
-        #     optimizer.step()
-
-        #     train_loss += loss.item()
-        #     num_batches += 1
         longest_len = max(len(sst_train_dataloader), len(quora_train_dataloader), len(sts_train_dataloader))
 
         cycle_sst_train_dataloader = cycle(sst_train_dataloader)
         cycle_quora_train_dataloader = cycle(quora_train_dataloader)
         cycle_sts_train_dataloader = cycle(sts_train_dataloader)
+
+
+
 
         for i in tqdm(range(longest_len), desc=f'train-{epoch}', disable=TQDM_DISABLE):
             # training for sentiment on sst
@@ -256,8 +276,8 @@ def train_multitask(args):
             logits = model.predict_sentiment(b_ids, b_mask)
             loss1 = F.cross_entropy(
                 logits, b_labels.view(-1), reduction='sum') / args.batch_size
-            train_loss += loss1.item()
-            num_batches += 1
+            # train_loss += loss1.item()
+            # num_batches += 1
 
             # training for paraphrase on quora 
             paraphrase_batch = next(cycle_quora_train_dataloader)
@@ -278,8 +298,8 @@ def train_multitask(args):
             logits = torch.sigmoid(logits)
             loss2 = bce_loss(
                 logits.squeeze(), b_labels.view(-1).type(torch.float)) / args.batch_size
-            train_loss += loss2.item()
-            num_batches += 1
+            # train_loss += loss2.item()
+            # num_batches += 1
 
             # training for similarity on sts
             similarity_batch = next(cycle_sts_train_dataloader)
@@ -299,10 +319,12 @@ def train_multitask(args):
             logits = model.predict_similarity(
                 b_ids_1, b_mask_1, b_ids_2, b_mask_2)
             loss3 = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float)) / args.batch_size
-            train_loss += loss3.item()
-            num_batches += 1
-            loss = loss1 + loss2 + loss3
-            loss.backward()
+            # train_loss += loss3.item()
+            # num_batches += 1
+            train_loss += loss1.item() + loss2.item() + loss3.item()
+            losses = [loss1, loss2, loss3]
+            # loss.backward()
+            optimizer.pc_backward(losses)
             optimizer.step()
 
         train_loss = train_loss / (num_batches)
@@ -381,6 +403,8 @@ def get_args():
     parser.add_argument("--hidden_dropout_prob", type=float, default=0.3)
     parser.add_argument("--lr", type=float, help="learning rate, default lr for 'pretrain': 1e-3, 'finetune': 1e-5",
                         default=1e-5)
+    #add weight decay for l2 regularization
+    parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay for the optimizer')
 
     args = parser.parse_args()
     return args
