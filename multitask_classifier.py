@@ -136,11 +136,11 @@ class MultitaskBERT(nn.Module):
         # cls_output_2 = F.normalize(cls_output_2)
         # logits = (cls_output_1 * cls_output_2).sum(dim=1)
 
-        logits = self.similarity_predicter(
-            torch.cat((outputs_1, outputs_2), dim=1)
-        )
+        # logits = self.similarity_predicter(
+        #     torch.cat((outputs_1, outputs_2), dim=1)
+        # )
         # #use cosine similarity
-        # logits = self.cosine_similarity(outputs_1, outputs_2)
+        logits = self.cosine_similarity(outputs_1, outputs_2)
         #cosine similarity outputs a value between -1 and 1
         #we want to output a class between 0 and 5
         #so we need to scale the output
@@ -219,36 +219,36 @@ def train_multitask(args):
 
     # Run for the specified number of epochs
 
-    # # Train on the similarity task first
-    # for epoch in range(args.epochs):
-    #     model.train()
-    #     train_loss = 0
-    #     num_batches = 0
+    # Train on the similarity task first
+    for epoch in range(args.epochs):
+        model.train()
+        train_loss = 0
+        num_batches = 0
     
-    #     for similarity_batch in tqdm(sts_train_dataloader, desc=f'similarity_pretrain-{epoch}', disable=TQDM_DISABLE):
-    #         optimizer.zero_grad()
+        for similarity_batch in tqdm(sts_train_dataloader, desc=f'similarity_pretrain-{epoch}', disable=TQDM_DISABLE):
+            optimizer.zero_grad()
     
-    #         b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (similarity_batch['token_ids_1'],
-    #                                                         similarity_batch['attention_mask_1'],
-    #                                                         similarity_batch['token_ids_2'],
-    #                                                         similarity_batch['attention_mask_2'],
-    #                                                         similarity_batch['labels'])
-    #         b_ids_1 = b_ids_1.to(device)
-    #         b_mask_1 = b_mask_1.to(device)
-    #         b_ids_2 = b_ids_2.to(device)
-    #         b_mask_2 = b_mask_2.to(device)
-    #         b_labels = b_labels.to(device)
+            b_ids_1, b_mask_1, b_ids_2, b_mask_2, b_labels = (similarity_batch['token_ids_1'],
+                                                            similarity_batch['attention_mask_1'],
+                                                            similarity_batch['token_ids_2'],
+                                                            similarity_batch['attention_mask_2'],
+                                                            similarity_batch['labels'])
+            b_ids_1 = b_ids_1.to(device)
+            b_mask_1 = b_mask_1.to(device)
+            b_ids_2 = b_ids_2.to(device)
+            b_mask_2 = b_mask_2.to(device)
+            b_labels = b_labels.to(device)
     
-    #         logits = model.predict_similarity(b_ids_1, b_mask_1, b_ids_2, b_mask_2)
-    #         loss = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float)) / args.batch_size
-    #         train_loss += loss.item()
-    #         num_batches += 1
+            logits = model.predict_similarity(b_ids_1, b_mask_1, b_ids_2, b_mask_2)
+            loss = mse_loss(logits.squeeze(), b_labels.view(-1).type(torch.float)) / args.batch_size
+            train_loss += loss.item()
+            num_batches += 1
     
-    #         loss.backward()
-    #         optimizer.step()
+            loss.backward()
+            optimizer.step()
 
-    # train_loss = train_loss / num_batches
-    # print(f"Similarity Pretrain Epoch {epoch}: train loss :: {train_loss :.3f}")
+    train_loss = train_loss / num_batches
+    print(f"Similarity Pretrain Epoch {epoch}: train loss :: {train_loss :.3f}")
 
     #then train on everything else
     for epoch in range(args.epochs):
